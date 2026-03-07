@@ -39,7 +39,8 @@ const SearchPage: React.FC = () => {
     <div
       style={{
         margin: "0 auto",
-        height: "100vh",
+        height: "100dvh",
+        maxWidth: "480px",
         display: "flex",
         flexDirection: "column",
         backgroundColor: "#F9F4F4",
@@ -83,7 +84,7 @@ const SearchPage: React.FC = () => {
             하루 400mg 이상의 카페인 섭취는 권장하지 않습니다!
           </span>
         </div>
-        <button
+        {/* <button
           onClick={() => setSidebarOpen(true)}
           style={{
             position: "absolute",
@@ -95,7 +96,7 @@ const SearchPage: React.FC = () => {
           }}
         >
           =
-        </button>
+        </button> */}
       </header>
 
       {/* 결과 리스트 영역 (스크롤 가능) */}
@@ -186,7 +187,7 @@ const SearchPage: React.FC = () => {
             >
               <p>궁금한 카페인 함량을 물어보세요.</p>
               <p style={{ fontSize: "17px", color: "#999", marginTop: "10px" }}>
-                예: 메가커피 음료 카페인 함량 알려줘
+                예: 메가커피 메가리카노 카페인 함량 알려줘 .
               </p>
             </div>
           )
@@ -271,7 +272,7 @@ const SearchPage: React.FC = () => {
         </div>
       </div>
 
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
+      {/* <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} /> */}
     </div>
   );
 };
