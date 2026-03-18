@@ -6,10 +6,13 @@ interface SearchResult {
   answer: string;
 }
 
+// ✅ 점검 여부 플래그 — true 이면 점검 오버레이 표시
+const IS_UNDER_MAINTENANCE = true;
+
 const SearchPage: React.FC = () => {
   const [isSidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [searchText, setSearchText] = useState<string>("");
-  const [userQuery, setUserQuery] = useState<string>(""); // 사용자가 입력한 질문을 저장할 상태 추가
+  const [userQuery, setUserQuery] = useState<string>("");
   const [answer, setAnswer] = useState<SearchResult>();
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -18,14 +21,17 @@ const SearchPage: React.FC = () => {
 
     setIsLoading(true);
     const currentQuery = searchText;
-    setUserQuery(currentQuery); // 검색 실행 시 질문 내용을 상태에 저장
-    setSearchText(""); // 입력창 초기화
+    setUserQuery(currentQuery);
+    setSearchText("");
     setAnswer(undefined);
 
     try {
       const response = await axios.get<SearchResult>(
-        `https://${process.env.REACT_APP_API_URL}/ask?q=${currentQuery}`,
-        { timeout: 0 },
+        `https://${process.env.REACT_APP_API_URL}/ask`,
+        {
+          params: { q: currentQuery },
+          timeout: 0,
+        },
       );
       setAnswer(response.data);
     } catch (error) {
@@ -34,6 +40,7 @@ const SearchPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const isMobile = window.innerWidth <= 768;
 
   return (
@@ -49,6 +56,73 @@ const SearchPage: React.FC = () => {
         position: "relative",
       }}
     >
+      {/* ─── 서버 점검 오버레이 ─── */}
+      {IS_UNDER_MAINTENANCE && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: "rgba(249, 244, 244, 0.92)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "16px",
+            padding: "32px",
+          }}
+        >
+          {/* 아이콘 */}
+          <div style={{ fontSize: "56px", lineHeight: 1 }}>🔧</div>
+
+          {/* 제목 */}
+          <p
+            style={{
+              fontSize: "22px",
+              fontWeight: "bold",
+              color: "#333",
+              margin: 0,
+              textAlign: "center",
+            }}
+          >
+            서버 점검 중입니다
+          </p>
+
+          {/* 설명 */}
+          <p
+            style={{
+              fontSize: "15px",
+              color: "#666",
+              margin: 0,
+              textAlign: "center",
+              lineHeight: "1.7",
+            }}
+          >
+            더 나은 서비스 제공을 위해 점검을 진행하고 있어요.
+            <br />
+            잠시 후 다시 이용해 주세요 😊
+          </p>
+
+          {/* 구분선 */}
+          <div
+            style={{
+              width: "120px",
+              height: "2px",
+              backgroundColor: "#FFB3B3",
+              borderRadius: "9999px",
+              marginTop: "4px",
+            }}
+          />
+
+          {/* 예상 완료 문구 (필요 시 날짜/시간으로 교체) */}
+          <p style={{ fontSize: "13px", color: "#aaa", margin: 0 }}>
+            빠른 시일 내에 복구될 예정입니다.
+          </p>
+        </div>
+      )}
+      {/* ─────────────────────────── */}
+
       {/* 고정 헤더 */}
       <header
         style={{
@@ -86,22 +160,9 @@ const SearchPage: React.FC = () => {
             하루 400mg 이상의 카페인 섭취는 권장하지 않습니다!
           </span>
         </div>
-        {/* <button
-          onClick={() => setSidebarOpen(true)}
-          style={{
-            position: "absolute",
-            right: "20px",
-            background: "none",
-            border: "none",
-            fontSize: "24px",
-            cursor: "pointer",
-          }}
-        >
-          =
-        </button> */}
       </header>
 
-      {/* 결과 리스트 영역 (스크롤 가능) */}
+      {/* 결과 리스트 영역 */}
       <div
         style={{
           flex: 1,
@@ -113,7 +174,6 @@ const SearchPage: React.FC = () => {
           backgroundColor: "#F9F4F4",
         }}
       >
-        {/* 사용자가 입력한 질문 말풍선 표시 */}
         {userQuery && (
           <div
             style={{
@@ -127,7 +187,7 @@ const SearchPage: React.FC = () => {
                 backgroundColor: "#4A90E2",
                 color: "white",
                 padding: "12px 18px",
-                borderRadius: "18px 18px 2px 18px", // 오른쪽 아래가 뾰족한 말풍선 모양
+                borderRadius: "18px 18px 2px 18px",
                 boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                 maxWidth: "85%",
                 lineHeight: "1.6",
@@ -140,7 +200,6 @@ const SearchPage: React.FC = () => {
           </div>
         )}
 
-        {/* 답변이 있을 때 AI 말풍선 표시 */}
         {answer ? (
           <div
             style={{
@@ -195,7 +254,6 @@ const SearchPage: React.FC = () => {
           )
         )}
 
-        {/* 로딩 상태 */}
         {isLoading && (
           <div
             style={{
@@ -273,8 +331,6 @@ const SearchPage: React.FC = () => {
           </button>
         </div>
       </div>
-
-      {/* <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} /> */}
     </div>
   );
 };
