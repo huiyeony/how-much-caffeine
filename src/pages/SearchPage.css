@@ -2,9 +2,26 @@
   display: flex;
   flex-direction: column;
   height: 100dvh;
-  max-width: 720px;
-  margin: 0 auto;
   background: #f9f4f4;
+}
+
+@media (min-width: 769px) {
+  .messages {
+    max-width: 760px;
+    width: 100%;
+    align-self: center;
+  }
+
+  .input-area {
+    max-width: 760px;
+    width: 100%;
+    align-self: center;
+  }
+
+  .msg-user .bubble,
+  .msg-ai .bubble {
+    max-width: 60%;
+  }
 }
 
 /* 헤더 */
