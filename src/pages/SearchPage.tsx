@@ -29,6 +29,8 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
   const [chatspaceId, setChatspaceId] = useState<string | null>(null);
   const [chatspaces, setChatspaces] = useState<Chatspace[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const authHeaders = { Authorization: `Bearer ${token}` };
@@ -41,18 +43,32 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
   useEffect(() => {
     const initChatspace = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/chatspaces`, { headers: authHeaders });
+        const res = await axios.get(`${BASE_URL}/chatspaces`, {
+          headers: authHeaders,
+        });
         if (res.data.length > 0) {
           // 가장 최근 채팅방 사용
           const id = res.data[0].chatspace_id;
           setChatspaceId(id);
           setChatspaces(res.data);
           // 이전 메시지 로드
-          const chatRes = await axios.get(`${BASE_URL}/chatspaces/${id}/chats`, { headers: authHeaders });
-          setMessages(chatRes.data.map((m: any) => ({ role: m.role, content: m.content })));
+          const chatRes = await axios.get(
+            `${BASE_URL}/chatspaces/${id}/chats`,
+            { headers: authHeaders },
+          );
+          setMessages(
+            chatRes.data.map((m: any) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          );
         } else {
           // 채팅방이 없으면 새로 생성
-          const created = await axios.post(`${BASE_URL}/chatspaces`, {}, { headers: authHeaders });
+          const created = await axios.post(
+            `${BASE_URL}/chatspaces`,
+            {},
+            { headers: authHeaders },
+          );
           setChatspaceId(created.data.chatspace_id);
           setChatspaces([created.data]);
         }
@@ -67,16 +83,46 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
     setChatspaceId(id);
     setIsSidebarOpen(false);
     try {
-      const chatRes = await axios.get(`${BASE_URL}/chatspaces/${id}/chats`, { headers: authHeaders });
-      setMessages(chatRes.data.map((m: any) => ({ role: m.role, content: m.content })));
+      const chatRes = await axios.get(`${BASE_URL}/chatspaces/${id}/chats`, {
+        headers: authHeaders,
+      });
+      setMessages(
+        chatRes.data.map((m: any) => ({ role: m.role, content: m.content })),
+      );
     } catch {
       setMessages([]);
     }
   };
 
+  const handleUpdateTitle = async (id: string) => {
+    if (!editingTitle.trim()) {
+      setEditingId(null);
+      return;
+    }
+    try {
+      await axios.patch(
+        `${BASE_URL}/chatspaces/${id}`,
+        { title: editingTitle },
+        { headers: authHeaders },
+      );
+      //바로 반영ㅇ
+      setChatspaces((prev) =>
+        prev.map((cs) =>
+          cs.chatspace_id === id ? { ...cs, title: editingTitle } : cs,
+        ),
+      );
+    } finally {
+      setEditingId(null);
+    }
+  };
+
   const handleNewChatspace = async () => {
     try {
-      const created = await axios.post(`${BASE_URL}/chatspaces`, {}, { headers: authHeaders });
+      const created = await axios.post(
+        `${BASE_URL}/chatspaces`,
+        {},
+        { headers: authHeaders },
+      );
       setChatspaceId(created.data.chatspace_id);
       setChatspaces((prev) => [created.data, ...prev]);
       setMessages([]);
@@ -95,27 +141,46 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
     setIsLoading(true);
 
     try {
-      const response = await axios.post<{ answer: string }>(
-        `${BASE_URL}/chatspaces/${chatspaceId}/chats`,
-        { content: currentQuery },
-        { headers: authHeaders, timeout: 0 }
-      );
-      setMessages((prev) => [...prev, { role: "assistant", content: response.data.answer }]);
+      const response = await fetch(`${BASE_URL}/chatspaces/${chatspaceId}/chats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: currentQuery }),
+      });
+
+      if (response.status === 401) { onLogout(); return; }
+      if (!response.ok) throw new Error();
+
+      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      setIsLoading(false);
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const lines = decoder.decode(value).split("\n");
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = JSON.parse(line.slice(6));
+          if (data.chunk) {
+            setMessages((prev) => {
+              const updated = [...prev];
+              updated[updated.length - 1] = {
+                role: "assistant",
+                content: updated[updated.length - 1].content + data.chunk,
+              };
+              return updated;
+            });
+          }
+        }
+      }
     } catch {
       setMessages((prev) => [...prev, { role: "assistant", content: "오류가 발생했습니다. 다시 시도해주세요." }]);
-    } finally {
       setIsLoading(false);
     }
   };
-
-  if (IS_UNDER_MAINTENANCE) {
-    return (
-      <div style={{ textAlign: "center", marginTop: "200px", color: "#666" }}>
-        <p style={{ fontSize: "22px", fontWeight: "bold" }}>🔧 서버 점검 중입니다</p>
-        <p style={{ fontSize: "15px", marginTop: "12px" }}>빠른 시일 내에 복구될 예정입니다.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="page">
@@ -148,7 +213,9 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
           flexDirection: "column",
         }}
       >
-        <div style={{ padding: "20px 16px", borderBottom: "1px solid #f0f0f0" }}>
+        <div
+          style={{ padding: "20px 16px", borderBottom: "1px solid #f0f0f0" }}
+        >
           <button
             onClick={handleNewChatspace}
             style={{
@@ -170,20 +237,74 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
           {chatspaces.map((cs) => (
             <div
               key={cs.chatspace_id}
-              onClick={() => handleSelectChatspace(cs.chatspace_id)}
               style={{
-                padding: "12px 16px",
-                cursor: "pointer",
-                fontSize: "14px",
-                color: "#333",
-                background: cs.chatspace_id === chatspaceId ? "#eef5fd" : "transparent",
-                borderLeft: cs.chatspace_id === chatspaceId ? "3px solid #4a90e2" : "3px solid transparent",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
+                display: "flex",
+                alignItems: "center",
+                padding: "4px 8px 4px 0",
+                background:
+                  cs.chatspace_id === chatspaceId ? "#eef5fd" : "transparent",
+                borderLeft:
+                  cs.chatspace_id === chatspaceId
+                    ? "3px solid #4a90e2"
+                    : "3px solid transparent",
               }}
             >
-              {cs.title || "새 채팅"}
+              {editingId === cs.chatspace_id ? (
+                <input
+                  autoFocus
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleUpdateTitle(cs.chatspace_id);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  onBlur={() => handleUpdateTitle(cs.chatspace_id)}
+                  style={{
+                    flex: 1,
+                    marginLeft: "13px",
+                    border: "1px solid #4a90e2",
+                    borderRadius: "6px",
+                    padding: "4px 8px",
+                    fontSize: "14px",
+                    outline: "none",
+                  }}
+                />
+              ) : (
+                <>
+                  <div
+                    onClick={() => handleSelectChatspace(cs.chatspace_id)}
+                    style={{
+                      flex: 1,
+                      padding: "8px 8px 8px 13px",
+                      cursor: "pointer",
+                      fontSize: "14px",
+                      color: "#333",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {cs.title || "새 채팅"}
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingId(cs.chatspace_id);
+                      setEditingTitle(cs.title || "");
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#bbb",
+                      fontSize: "13px",
+                      padding: "4px 8px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    ✏️
+                  </button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -237,7 +358,9 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
               </div>
               <div className="usage-item">
                 <span className="usage-label">브랜드 + 음료명</span>
-                <span className="usage-desc">메가커피 메가리카노 카페인 얼마야?</span>
+                <span className="usage-desc">
+                  메가커피 메가리카노 카페인 얼마야?
+                </span>
               </div>
             </div>
           </div>
@@ -253,10 +376,14 @@ const SearchPage: React.FC<Props> = ({ token, onLogout }) => {
               <span className="label">AI 분석 결과</span>
               <div className="bubble">{msg.content}</div>
             </div>
-          )
+          ),
         )}
 
-        {isLoading && <p className="loading">데이터를 분석하고 있습니다. 잠시만 기다려주세요.</p>}
+        {isLoading && (
+          <p className="loading">
+            데이터를 분석하고 있습니다. 잠시만 기다려주세요.
+          </p>
+        )}
         <div ref={bottomRef} />
       </div>
 
